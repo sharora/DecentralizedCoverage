@@ -45,6 +45,7 @@ class Controller(object):
         for i in range(self._numrobot):
             gb = GaussianBasis(mulis, sigmalis)
             self._phihatlist.append(gb)
+            #hardcoding correct params for preliminary testing
             gb.updateparam(np.array([1.0, 1.0]))
 
     def step(self, dt):
@@ -94,6 +95,7 @@ class Controller(object):
         #computing all C_V based on M's and L's
         for i in range(self._numrobot):
             self._CV[i] = self._LV[i]/self._MV[i]
+            # print(self._CV[i])
 
     def updateParams(self):
         pass

@@ -1,18 +1,19 @@
 from controller import Controller
 from linearbasis import GaussianBasis
 import numpy as np
+import matplotlib.pyplot as plt
 
 qlis = np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2],
                  [2, 0], [2, 1], [2, 2]], dtype=float)
 # mulis = np.array([[2,3],[4,5]], dtype=float)
 # sigmalis = np.array([[[5,5], [5,5]], [[5,5], [5,5]]], dtype=float)
 mulis = [
-    [100, 50],
-    [200, 150]
+    [6, 2],
+    [2, 6]
 ]
 sigmalis = [
-    [[1000, 0], [500, 1000]],
-    [[1000, 0], [500, 2000]]
+    [[0.5, 0], [0, 0.5]],
+    [[0.5, 0], [0, 0.5]]
 ]
 
 truephi = GaussianBasis(mulis, sigmalis)
@@ -23,6 +24,12 @@ res = (8,8)
 
 c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis)
 
-for i in range(200):
+graphcolors = np.random.rand(9)
+for i in range(1000):
     currpos = c.step(0.02)
-    print(currpos)
+    plt.clf()
+    currpos = np.transpose(currpos)
+    plt.scatter(currpos[0], currpos[1],c=graphcolors, alpha=0.5)
+    plt.draw()
+    plt.pause(0.02)
+plt.pause(5)
