@@ -6,6 +6,7 @@ class GaussianBasis(object):
         super().__init__()
         self._basislen = len(mulis)
         self._a = np.random.rand(self._basislen, 1)
+        self._kappa = np.zeros(self._basislen)
         self._mulis = mulis
         self._sigmalis = sigmalis
     def eval(self, position):
@@ -15,6 +16,12 @@ class GaussianBasis(object):
             sum += self._a[i] * multivariate_normal(self._mulis[i],
                                                     self._sigmalis[i]).pdf(position)
         return sum
+    def evalBasis(self, position):
+        for i in range(self._basislen):
+            self._kappa[i] = multivariate_normal(self._mulis[i],
+                                           self._sigmalis[i]).pdf(position)
+        return self._kappa
+
     def getparam(self):
         return self._a
     def updateparam(self, newa):
