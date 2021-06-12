@@ -72,23 +72,24 @@ class Controller(object):
         self.computeVoronoiIntegrals()
 
         #update all parameters
-        # for i in range(self._numrobot):
-        #     #equation 13, finding adots
-        #     curr = -self._F[i] @ self._phihatlist[i].getparam() - self._gamma * (self._Lambda[i] @ self._phihatlist[i].getparam() - self._lambda[i])
+        for i in range(self._numrobot):
+            #equation 13, finding adots
+            curr = -self._F[i] @ self._phihatlist[i].getparam() - self._gamma * (self._Lambda[i] @ self._phihatlist[i].getparam()
+                                                                                 - np.reshape(self._lambda[i], (self._basislen, 1)))
+            #equation 14, projection step
+            #TODO add this step
 
-        #     #equation 14, projection step
-        #     #TODO add this step
+            #euler integrating it forward
+            #TODO fix this step: commenting this out for now because it doesn't work
+            # self._phihatlist[i].updateparam(curr*(1+dt))
+            # print(curr*(1+dt))
 
-        #     #euler integrating it forward
-        #     # self._phihatlist[i].updateparam(curr*(1+dt))
-        #     print(curr*(1+dt))
-
-        # #updating the lambdas
-        # #equation 11
-        # for i in range(self._numrobot):
-        #     currkap = self._phihatlist[i].evalBasis(self._qlis[i])
-        #     self._Lambda[i] += currkap @ np.transpose(currkap) * dt
-        #     self._lambda[i] += currkap @ self._phihatlist[i].eval(self._qlis[i]) * dt
+        #updating the lambdas
+        #equation 11
+        for i in range(self._numrobot):
+            currkap = self._phihatlist[i].evalBasis(self._qlis[i])
+            self._Lambda[i] += currkap @ np.transpose(currkap) * dt
+            self._lambda[i] += currkap*self._phihatlist[i].eval(self._qlis[i]) * dt
 
         #apply control input and update state
         for i in range(self._numrobot):
@@ -139,6 +140,7 @@ class Controller(object):
         #computing all F_i from F1, F2, M_v. (Equation 12)
         for i in range(self._numrobot):
             self._F[i] = (1.0/self._MV[i])*(F1[i] @ self._K  @ F2[i])
+            # print(self._F[i])
 
     def updateParams(self):
         pass
