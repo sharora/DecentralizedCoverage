@@ -21,8 +21,10 @@ truephi.updateparam(np.array([1.0, 1.0]))
 qcoor = np.array([[0,0], [8,8]],dtype=float)
 res = (8,8)
 
+amin = np.array([0.1, 0.1])
 
-c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis)
+
+c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin)
 
 graphcolors = np.random.rand(9)
 for i in range(1000):

@@ -21,7 +21,7 @@ class Controller(object):
     that was used in representing the true sensing function, and that will be used for
     representing each robot's estimate of the sensing function
     '''
-    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis):
+    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin):
         super().__init__()
         self._qlis = qlis
         self._numrobot = qlis.shape[0]
@@ -29,6 +29,7 @@ class Controller(object):
         self._qcoor = qcoor
         self._kdtree = KDTree(qlis)
         self._res = res
+        self._amin = amin
 
         self._K = np.eye(2)
 
@@ -70,19 +71,22 @@ class Controller(object):
 
         #Compute all integrals over voronoi regions
         self.computeVoronoiIntegrals()
-
         #update all parameters
         for i in range(self._numrobot):
             #equation 13, finding adots
-            curr = -self._F[i] @ self._phihatlist[i].getparam() - self._gamma * (self._Lambda[i] @ self._phihatlist[i].getparam()
-                                                                                 - np.reshape(self._lambda[i], (self._basislen, 1)))
+            acurr_i = self._phihatlist[i].getparam()
+            adot_i = -self._F[i] @ acurr_i - self._gamma * (self._Lambda[i] @ acurr_i - np.reshape(self._lambda[i], (self._basislen, 1)))
+
             #equation 14, projection step
-            #TODO add this step
+            for j in range(self._basislen):
+                if(acurr_i[j] < self._amin[j]):
+                    acurr_i[j] = self._amin[j]
+                    adot_i[j] = 0
+                elif(acurr_i[j] == self._amin[j] and adot_i[j] < 0):
+                    adot_i[j] = 0
 
             #euler integrating it forward
-            #TODO fix this step: commenting this out for now because it doesn't work
-            # self._phihatlist[i].updateparam(curr*(1+dt))
-            # print(curr*(1+dt))
+            self._phihatlist[i].updateparam(adot_i*dt + acurr_i)
 
         #updating the lambdas
         #equation 11
@@ -130,7 +134,7 @@ class Controller(object):
 
                 #TODO make this better, pretty sure F2 is transpose of F1, so computation is redundant
                 F1[region] += self._dA * self._phihatlist[region].evalBasis(pos) @ np.transpose(pos - self._qlis[region])
-                F2[region] += self._dA * (pos - self._qlis[region]) @ np.transpose(self._phihatlist[region].evalBasis(pos))
+                # F2[region] += self._dA * (pos - self._qlis[region]) @ np.transpose(self._phihatlist[region].evalBasis(pos))
 
         #computing all C_V based on M's and L's
         for i in range(self._numrobot):
@@ -139,12 +143,7 @@ class Controller(object):
 
         #computing all F_i from F1, F2, M_v. (Equation 12)
         for i in range(self._numrobot):
-            self._F[i] = (1.0/self._MV[i])*(F1[i] @ self._K  @ F2[i])
-            # print(self._F[i])
-
-    def updateParams(self):
-        pass
-
+            self._F[i] = (1.0/self._MV[i])*(F1[i] @ self._K  @ np.transpose(F1[i]))
     def grid2World(self, x, y):
         '''
         we are assuming x and y are not in the image coordinate system, just
