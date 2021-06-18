@@ -87,6 +87,7 @@ class Controller(object):
 
             #euler integrating it forward
             self._phihatlist[i].updateparam(adot_i*dt + acurr_i)
+            # print(adot_i*dt + acurr_i)
 
         #updating the lambdas
         #equation 11
@@ -115,7 +116,7 @@ class Controller(object):
 
         #F1, F2, are the 2 integrals needed to compute F, the third is just M_V
         F1 = np.zeros((self._numrobot, self._basislen, 2))
-        F2 = np.zeros((self._numrobot, 2, self._basislen))
+        # F2 = np.zeros((self._numrobot, 2, self._basislen))
 
         #looping over all squares in Q
         for i in range(self._res[0]):
