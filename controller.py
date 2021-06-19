@@ -21,7 +21,7 @@ class Controller(object):
     that was used in representing the true sensing function, and that will be used for
     representing each robot's estimate of the sensing function
     '''
-    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin):
+    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin, gamma):
         super().__init__()
         self._qlis = qlis
         self._numrobot = qlis.shape[0]
@@ -48,7 +48,7 @@ class Controller(object):
 
 
         #gamma is the learning rate
-        self._gamma = 0.01
+        self._gamma = gamma
 
         #we will use constant weighting function when computing Lambda and lambda
         #for now, TODO is to see how adding a function changes things
@@ -85,12 +85,10 @@ class Controller(object):
                 elif(acurr_i[j] == self._amin[j] and adot_i[j] < 0):
                     adot_i[j] = 0
 
-            #euler integrating it forward
+            #euler integrating parameter derivative forward
             self._phihatlist[i].updateparam(adot_i*dt + acurr_i)
-            # print(adot_i*dt + acurr_i)
 
-        #updating the lambdas
-        #equation 11
+        #equation 11 updating the lambdas
         for i in range(self._numrobot):
             currkap = self._phihatlist[i].evalBasis(self._qlis[i])
             self._Lambda[i] += currkap @ np.transpose(currkap) * dt
@@ -116,7 +114,6 @@ class Controller(object):
 
         #F1, F2, are the 2 integrals needed to compute F, the third is just M_V
         F1 = np.zeros((self._numrobot, self._basislen, 2))
-        # F2 = np.zeros((self._numrobot, 2, self._basislen))
 
         #looping over all squares in Q
         for i in range(self._res[0]):
@@ -133,16 +130,14 @@ class Controller(object):
                 self._MV[region] += phihat*self._dA
                 self._LV[region] += phihat*pos*self._dA
 
-                #TODO make this better, pretty sure F2 is transpose of F1, so computation is redundant
                 F1[region] += self._dA * self._phihatlist[region].evalBasis(pos) @ np.transpose(pos - self._qlis[region])
-                # F2[region] += self._dA * (pos - self._qlis[region]) @ np.transpose(self._phihatlist[region].evalBasis(pos))
 
         #computing all C_V based on M's and L's
         for i in range(self._numrobot):
             self._CV[i] = self._LV[i]/self._MV[i]
             # print(self._CV[i])
 
-        #computing all F_i from F1, F2, M_v. (Equation 12)
+        #computing all F_i from F1, M_v. (Equation 12)
         for i in range(self._numrobot):
             self._F[i] = (1.0/self._MV[i])*(F1[i] @ self._K  @ np.transpose(F1[i]))
     def grid2World(self, x, y):

@@ -3,12 +3,20 @@ from linearbasis import GaussianBasis
 import numpy as np
 import matplotlib.pyplot as plt
 
+#environment parameters
+numsteps = 1000
+numrobot = 9
+qcoor = np.array([[0,0], [8,8]],dtype=float) #defines rectangular region
 
-qlis = np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2],
-                 [2, 0], [2, 1], [2, 2]], dtype=float)
-numrobot = qlis.shape[0]
-# mulis = np.array([[2,3],[4,5]], dtype=float)
-# sigmalis = np.array([[[5,5], [5,5]], [[5,5], [5,5]]], dtype=float)
+#generating random points in the rectangle where the robots will start
+qlis = []
+for i in range(numrobot):
+    xcoor = qcoor[1][0] * np.random.random_sample() + qcoor[0][0]
+    ycoor = qcoor[1][1] * np.random.random_sample() + qcoor[0][1]
+    qlis.append([xcoor, ycoor])
+qlis = np.array(qlis)
+
+#defining the basis functions and parameters of sensing function
 mulis = [
     [6, 2],
     [2, 6]
@@ -17,22 +25,22 @@ sigmalis = [
     [[0.5, 0], [0, 0.5]],
     [[0.5, 0], [0, 0.5]]
 ]
-
+truea = np.array([3.0, 8.0])
+amin = np.array([0.1, 0.1]) 
 truephi = GaussianBasis(mulis, sigmalis)
-truephi.updateparam(np.array([1.0, 1.0]))
-qcoor = np.array([[0,0], [8,8]],dtype=float)
-res = (8,8)
-amin = np.array([0.1, 0.1])
+truephi.updateparam(truea)
 
-
-c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin)
-numsteps = 1000
+#defining the controller to drive robots to locally optimal configuration
+res = (8,8) #resolution tells us how many regions to divide each axis into
+gamma = 0.1 #learning rate
+c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
 
 #lists for tracking distance between robot parameters and true parameters
 adislist = []
 for i in range(numrobot):
     adislist.append([])
 
+#main simulation loop
 graphcolors = np.random.rand(numrobot)
 for i in range(numsteps):
     #forward step
