@@ -25,7 +25,7 @@ sigmalis = [
     [[0.5, 0], [0, 0.5]],
     [[0.5, 0], [0, 0.5]]
 ]
-truea = np.array([3.0, 8.0])
+truea = np.array([[3.0], [8.0]])
 amin = np.array([0.1, 0.1]) 
 truephi = GaussianBasis(mulis, sigmalis)
 truephi.updateparam(truea)
@@ -33,12 +33,14 @@ truephi.updateparam(truea)
 #defining the controller to drive robots to locally optimal configuration
 res = (8,8) #resolution tells us how many regions to divide each axis into
 gamma = 0.1 #learning rate
-c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
+c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.02)
 
 #lists for tracking distance between robot parameters and true parameters
 adislist = []
 for i in range(numrobot):
     adislist.append([])
+
+vargraph = []
 
 #main simulation loop
 graphcolors = np.random.rand(numrobot)
@@ -53,13 +55,28 @@ for i in range(numsteps):
     plt.draw()
     plt.pause(0.02)
 
+    varlist = []
     #adding parameter distances to list
     for j in range(numrobot):
         dist = np.linalg.norm(c._phihatlist[j].getparam() - truephi.getparam())
         adislist[j].append(dist)
+        varlist.append(c._phihatlist[j].getparam())
+    #computing and storing variance of parameters
+    varlist = np.array(varlist)
+    m = np.mean(varlist, axis=0)
+    var = 0
+    for j in range(numrobot):
+        var += np.transpose(c._phihatlist[j].getparam() - m) @ (c._phihatlist[j].getparam() - m)
+    var = var/numrobot
+    vargraph.append(var[0][0])
+
+plt.clf()
+
+#graphing variance of robot parameters with respect to time
+plt.plot(np.array(vargraph))
+plt.show()
 
 #graphing parameter distances with respect to time
-plt.clf()
 for i in range(numrobot):
     plt.plot(np.array(adislist[i]))
     plt.show()

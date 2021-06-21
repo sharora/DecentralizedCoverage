@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial import KDTree
+from scipy.spatial import Delaunay
 from linearbasis import GaussianBasis
 
 
@@ -21,7 +22,7 @@ class Controller(object):
     that was used in representing the true sensing function, and that will be used for
     representing each robot's estimate of the sensing function
     '''
-    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin, gamma):
+    def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin, gamma, incl_consensus=False, zeta=0):
         super().__init__()
         self._qlis = qlis
         self._numrobot = qlis.shape[0]
@@ -50,6 +51,10 @@ class Controller(object):
         #gamma is the learning rate
         self._gamma = gamma
 
+        #boolean telling us whether we include the consensus term
+        self._consensus = incl_consensus
+        self._zeta = zeta
+
         #we will use constant weighting function when computing Lambda and lambda
         #for now, TODO is to see how adding a function changes things
 
@@ -69,6 +74,11 @@ class Controller(object):
         #updating voronoi regions
         self._kdtree = KDTree(self._qlis)
 
+        #creating adjaceny matrix for consensus term
+        c_terms = None
+        if(self._consensus):
+            c_terms = self.consensus_terms()
+
         #Compute all integrals over voronoi regions
         self.computeVoronoiIntegrals()
         #update all parameters
@@ -76,6 +86,9 @@ class Controller(object):
             #equation 13, finding adots
             acurr_i = self._phihatlist[i].getparam()
             adot_i = -self._F[i] @ acurr_i - self._gamma * (self._Lambda[i] @ acurr_i - np.reshape(self._lambda[i], (self._basislen, 1)))
+
+            if(c_terms != None):
+                adot_i -= self._zeta * c_terms[i]
 
             #equation 14, projection step
             for j in range(self._basislen):
@@ -101,6 +114,32 @@ class Controller(object):
 
         #returning the current state
         return self._qlis
+
+    def consensus_terms(self):
+        #creating the Delaunay triangulation which is the dual graph of the voronoi partition
+        tri = Delaunay(self._qlis).simplices
+        c_terms = []
+
+        #storing all the parameters of each robot
+        a_curr = []
+        for i in range(self._numrobot):
+            a_curr.append(self._phihatlist[i].getparam())
+            c_terms.append(np.zeros((self._basislen, 1)))
+
+        #looping over each triangle and adding each edge to each consensus sum
+        for i in range(tri.shape[0]):
+            curr = tri[i]
+            v1 = curr[0]
+            v2 = curr[1]
+            v3 = curr[2]
+
+            #we are choosing the weighting in remark 5 because it simpler for now
+            #TODO try the weighting given by the edge length shared by the 2 voronoi regions
+            c_terms[v1] += (a_curr[v1] - a_curr[v2]) + (a_curr[v1] - a_curr[v3])
+            c_terms[v2] += (a_curr[v2] - a_curr[v1]) + (a_curr[v2] - a_curr[v3])
+            c_terms[v3] += (a_curr[v3] - a_curr[v1]) + (a_curr[v3] - a_curr[v2])
+
+        return c_terms
 
     def computeVoronoiIntegrals(self):
         '''
