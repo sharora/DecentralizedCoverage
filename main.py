@@ -22,10 +22,8 @@ mulis = [
     [2, 6]
 ]
 sigmalis = [
-    [[0.5, 0], [0, 0.5]],
-    [[0.5, 0], [0, 0.5]]
-]
-truea = np.array([[3.0], [8.0]])
+    [[4, 0], [0, 4]], [[4, 0], [0, 4]]]
+truea = np.array([[8.0], [3.0]])
 amin = np.array([0.1, 0.1]) 
 truephi = GaussianBasis(mulis, sigmalis)
 truephi.updateparam(truea)
@@ -33,7 +31,8 @@ truephi.updateparam(truea)
 #defining the controller to drive robots to locally optimal configuration
 res = (8,8) #resolution tells us how many regions to divide each axis into
 gamma = 0.1 #learning rate
-c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.02)
+# c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.02)
+c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
 
 #lists for tracking distance between robot parameters and true parameters
 adislist = []
@@ -61,6 +60,7 @@ for i in range(numsteps):
         dist = np.linalg.norm(c._phihatlist[j].getparam() - truephi.getparam())
         adislist[j].append(dist)
         varlist.append(c._phihatlist[j].getparam())
+        print(varlist[j])
     #computing and storing variance of parameters
     varlist = np.array(varlist)
     m = np.mean(varlist, axis=0)
@@ -80,4 +80,13 @@ plt.show()
 for i in range(numrobot):
     plt.plot(np.array(adislist[i]))
     plt.show()
+
+for i in range(numrobot):
+    #checking which Lambdas are positive definite
+    li = c._Lambda[i]
+    print(li)
+    if(np.all(np.linalg.eigvals(li) > 0)):
+        print("good, Lambda is positive definite")
+    else:
+        print("bad, Lambda is not positive definite")
 
