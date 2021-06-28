@@ -8,13 +8,16 @@ numsteps = 1000
 numrobot = 9
 qcoor = np.array([[0,0], [8,8]],dtype=float) #defines rectangular region
 
+#setting the random seed so that this code is deterministic maybe
+np.random.seed(3)
+
 #generating random points in the rectangle where the robots will start
 qlis = []
 for i in range(numrobot):
     xcoor = qcoor[1][0] * np.random.random_sample() + qcoor[0][0]
     ycoor = qcoor[1][1] * np.random.random_sample() + qcoor[0][1]
-    qlis.append([xcoor, ycoor])
-qlis = np.array(qlis)
+    qlis.append(np.array([[xcoor], [ycoor]]))
+# qlis = np.array(qlis)
 
 #defining the basis functions and parameters of sensing function
 mulis = [
@@ -23,15 +26,17 @@ mulis = [
 ]
 sigmalis = [
     [[4, 0], [0, 4]], [[4, 0], [0, 4]]]
-truea = np.array([[8.0], [3.0]])
-amin = np.array([0.1, 0.1]) 
+
+
+truea = np.array([[8], [3]])
+amin = np.array([[0.01], [0.01]]) 
 truephi = GaussianBasis(mulis, sigmalis)
 truephi.updateparam(truea)
 
 #defining the controller to drive robots to locally optimal configuration
 res = (8,8) #resolution tells us how many regions to divide each axis into
-gamma = 0.1 #learning rate
-# c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.02)
+gamma = 1e4 #learning rate
+# c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.2)
 c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
 
 #lists for tracking distance between robot parameters and true parameters
@@ -41,6 +46,9 @@ for i in range(numrobot):
 
 vargraph = []
 
+
+currpos = c.step(0.02)
+
 #main simulation loop
 graphcolors = np.random.rand(numrobot)
 for i in range(numsteps):
@@ -49,6 +57,7 @@ for i in range(numsteps):
 
     #graphing current robot positions
     plt.clf()
+    currpos = np.array(currpos).reshape(numrobot, 2)
     currpos = np.transpose(currpos)
     plt.scatter(currpos[0], currpos[1],c=graphcolors, alpha=0.5)
     plt.draw()

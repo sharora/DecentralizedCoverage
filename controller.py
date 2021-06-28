@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from scipy.spatial import Delaunay
 from linearbasis import GaussianBasis
+import time
 
 
 class Controller(object):
@@ -25,10 +26,9 @@ class Controller(object):
     def __init__(self, qlis, phi, qcoor, res, mulis, sigmalis, amin, gamma, incl_consensus=False, zeta=0):
         super().__init__()
         self._qlis = qlis
-        self._numrobot = qlis.shape[0]
+        self._numrobot = len(qlis)
         self._phi = phi
         self._qcoor = qcoor
-        self._kdtree = KDTree(qlis)
         self._res = res
         self._amin = amin
 
@@ -39,14 +39,19 @@ class Controller(object):
         #storing the area of a grid cell in our discretization of Q
         self._dA = (float(qcoor[1][0])/res[0])*(float(qcoor[1][1])/res[1])
 
-        #creating arrays to store intermediate computations needed for update/control
-        self._CV = np.zeros(qlis.shape)
-        self._LV = np.zeros(qlis.shape)
-        self._MV = np.zeros((self._numrobot, 1))
-        self._Lambda = np.zeros((self._numrobot, self._basislen, self._basislen))
-        self._lambda = np.zeros((self._numrobot, self._basislen))
-        self._F = np.zeros((self._numrobot, self._basislen, self._basislen))
+        #creating list of arrays to store intermediate computations needed for update/control
+        self._CV = []
+        self._MV = []
+        self._Lambda = []
+        self._lambda = []
+        self._F = []
 
+        for i in range(self._numrobot):
+            self._CV.append(np.zeros((2,1)))
+            self._MV.append(0)
+            self._Lambda.append(np.zeros((self._basislen, self._basislen)))
+            self._lambda.append(np.zeros((self._basislen, 1)))
+            self._F.append(np.zeros((self._basislen, self._basislen)))
 
         #gamma is the learning rate
         self._gamma = gamma
@@ -63,8 +68,6 @@ class Controller(object):
         for i in range(self._numrobot):
             gb = GaussianBasis(mulis, sigmalis)
             self._phihatlist.append(gb)
-            #hardcoding correct params for preliminary testing
-            # gb.updateparam(np.array([1.0, 1.0]))
 
     def step(self, dt):
         '''
@@ -72,7 +75,8 @@ class Controller(object):
         internal parameters, and integrating forward. Currently using Euler integration.
         '''
         #updating voronoi regions
-        self._kdtree = KDTree(self._qlis)
+        qlis_modshape = np.array(self._qlis).reshape(self._numrobot, 2)
+        self._kdtree = KDTree(qlis_modshape)
 
         #creating adjaceny matrix for consensus term
         c_terms = None
@@ -81,31 +85,26 @@ class Controller(object):
 
         #Compute all integrals over voronoi regions
         self.computeVoronoiIntegrals()
+
         #update all parameters
         for i in range(self._numrobot):
             #equation 13, finding adots
-            acurr_i = self._phihatlist[i].getparam()
-            adot_i = -self._F[i] @ acurr_i - self._gamma * (self._Lambda[i] @ acurr_i - np.reshape(self._lambda[i], (self._basislen, 1)))
+            acurr_i = self._phihatlist[i]._a
+            adot_i = -self._F[i] @ acurr_i - self._gamma * (self._Lambda[i] @ acurr_i - self._lambda[i])
 
             if(c_terms != None):
                 adot_i -= self._zeta * c_terms[i]
 
-            #equation 14, projection step
-            for j in range(self._basislen):
-                if(acurr_i[j] < self._amin[j]):
-                    acurr_i[j] = self._amin[j]
-                    adot_i[j] = 0
-                elif(acurr_i[j] == self._amin[j] and adot_i[j] < 0):
-                    adot_i[j] = 0
+            #euler integrating parameter derivative forward, and using np.clip for Eq 14: Projection Step
+            self._phihatlist[i]._a = np.clip(adot_i*dt + acurr_i, self._amin, None)
 
-            #euler integrating parameter derivative forward
-            self._phihatlist[i].updateparam(adot_i*dt + acurr_i)
 
         #equation 11 updating the lambdas
         for i in range(self._numrobot):
-            currkap = self._phihatlist[i].evalBasis(self._qlis[i])
+            currkap = self._phihatlist[i].evalBasis(np.reshape(self._qlis[i], (2,)))
             self._Lambda[i] += currkap @ np.transpose(currkap) * dt
-            self._lambda[i] += currkap*self._phihatlist[i].eval(self._qlis[i]) * dt
+            self._lambda[i] += currkap*self._phihatlist[i].eval(np.reshape(self._qlis[i], (2,))) * dt
+            # print(self._lambda[i].shape)
 
         #apply control input and update state
         for i in range(self._numrobot):
@@ -123,14 +122,12 @@ class Controller(object):
         #storing all the parameters of each robot
         a_curr = []
         for i in range(self._numrobot):
-            a_curr.append(self._phihatlist[i].getparam())
+            a_curr.append(self._phihatlist[i]._a)
             c_terms.append(np.zeros((self._basislen, 1)))
 
         #looping over each triangle and adding each edge to each consensus sum
         for i in range(tri.shape[0]):
             curr = tri[i]
-            v1 = curr[0]
-            v2 = curr[1]
             v3 = curr[2]
 
             #we are choosing the weighting in remark 5 because it simpler for now
@@ -146,13 +143,11 @@ class Controller(object):
         we opt to compute all integrals in one method so we have to sum over
         each square only once.
         '''
-        #zeroing all intermediate stores
-        self._CV = np.zeros(self._qlis.shape)
-        self._LV = np.zeros(self._qlis.shape)
-        self._MV = np.zeros((self._numrobot, 1))
-
-        #F1, F2, are the 2 integrals needed to compute F, the third is just M_V
-        F1 = np.zeros((self._numrobot, self._basislen, 2))
+        #zeroing all intermediate stores, including F
+        for i in range(self._numrobot):
+            self._CV[i] = np.zeros((2,1))
+            self._MV[i] = 0
+            self._F[i] = np.zeros((self._basislen, self._basislen))
 
         #looping over all squares in Q
         for i in range(self._res[0]):
@@ -160,25 +155,30 @@ class Controller(object):
                 #converting the grid coordinate to world coordinate
                 pos = self.grid2World(i,j)
 
+                #some functions want vector not matrix so we convert
+                reshapedpos = np.reshape(pos, (2,))
+
                 #deciding which voronoi region it belongs to
-                region = self._kdtree.query(pos)[1]
+                region = self._kdtree.query(reshapedpos)[1]
 
                 #incrementing M and L (recall we don't need to multiply by the determinant of the scaling transformation because it cancel), which in this case would be the unit area of a rectangle
 
-                phihat = self._phihatlist[region].eval(pos)
+                phihat = self._phihatlist[region].eval(reshapedpos)
                 self._MV[region] += phihat*self._dA
-                self._LV[region] += phihat*pos*self._dA
+                self._CV[region] += phihat*pos*self._dA
 
-                F1[region] += self._dA * self._phihatlist[region].evalBasis(pos) @ np.transpose(pos - self._qlis[region])
+                self._F[region] += self._dA * self._phihatlist[region].evalBasis(reshapedpos) @ np.transpose(pos - self._qlis[region])
 
         #computing all C_V based on M's and L's
         for i in range(self._numrobot):
-            self._CV[i] = self._LV[i]/self._MV[i]
+            self._CV[i] = self._CV[i]/self._MV[i]
             # print(self._CV[i])
 
         #computing all F_i from F1, M_v. (Equation 12)
         for i in range(self._numrobot):
-            self._F[i] = (1.0/self._MV[i])*(F1[i] @ self._K  @ np.transpose(F1[i]))
+            self._F[i] = (1.0/self._MV[i])*(self._F[i] @ self._K  @ np.transpose(self._F[i]))
+            # print(self._F[i])
+
     def grid2World(self, x, y):
         '''
         we are assuming x and y are not in the image coordinate system, just
@@ -186,7 +186,7 @@ class Controller(object):
         '''
         newx = self._qcoor[0][0] + (float(x)/self._res[0])*self._qcoor[1][0]
         newy = self._qcoor[0][1] + (float(y)/self._res[1])*self._qcoor[1][1]
-        return np.array([newx, newy])
+        return np.array([[newx], [newy]])
 
 
 
