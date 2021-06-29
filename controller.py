@@ -116,7 +116,9 @@ class Controller(object):
 
     def consensus_terms(self):
         #creating the Delaunay triangulation which is the dual graph of the voronoi partition
-        tri = Delaunay(self._qlis).simplices
+
+        qlis_modshape = np.array(self._qlis).reshape(self._numrobot, 2)
+        tri = Delaunay(qlis_modshape).simplices
         c_terms = []
 
         #storing all the parameters of each robot
@@ -128,6 +130,8 @@ class Controller(object):
         #looping over each triangle and adding each edge to each consensus sum
         for i in range(tri.shape[0]):
             curr = tri[i]
+            v1 = curr[0]
+            v2 = curr[1]
             v3 = curr[2]
 
             #we are choosing the weighting in remark 5 because it simpler for now

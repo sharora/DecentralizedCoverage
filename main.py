@@ -9,7 +9,7 @@ numrobot = 9
 qcoor = np.array([[0,0], [8,8]],dtype=float) #defines rectangular region
 
 #setting the random seed so that this code is deterministic maybe
-np.random.seed(3)
+np.random.seed(420)
 
 #generating random points in the rectangle where the robots will start
 qlis = []
@@ -25,19 +25,19 @@ mulis = [
     [2, 6]
 ]
 sigmalis = [
-    [[4, 0], [0, 4]], [[4, 0], [0, 4]]]
+    [[0.5, 0], [0, 0.5]], [[0.5, 0], [0, 0.5]]]
 
 
-truea = np.array([[8], [3]])
-amin = np.array([[0.01], [0.01]]) 
+truea = np.array([[100], [100]])
+amin = np.array([[0.1], [0.1]]) 
 truephi = GaussianBasis(mulis, sigmalis)
 truephi.updateparam(truea)
 
 #defining the controller to drive robots to locally optimal configuration
-res = (8,8) #resolution tells us how many regions to divide each axis into
-gamma = 1e4 #learning rate
-# c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.2)
-c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
+res = (10,10) #resolution tells us how many regions to divide each axis into
+gamma = 1e2 #learning rate
+c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma, True, 0.2)
+# c = Controller(qlis, truephi, qcoor, res, mulis, sigmalis, amin, gamma)
 
 #lists for tracking distance between robot parameters and true parameters
 adislist = []
